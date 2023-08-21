@@ -121,6 +121,7 @@ class InceptionNetwork(BaseDeepNetwork):
         bottleneck_size=32,
         depth=6,
         use_custom_filters=True,
+        use_gap=True,
         random_state=0,
     ):
         _check_dl_dependencies(severity="error")
@@ -140,12 +141,13 @@ class InceptionNetwork(BaseDeepNetwork):
         self.depth = depth
         self.bottleneck_size = bottleneck_size
         self.use_custom_filters = use_custom_filters
+        self.use_gap = use_gap
         self.random_state = random_state
 
         super(InceptionNetwork, self).__init__()
 
     def hybrid_layer(self, input_tensor, input_channels, kernel_sizes=None):
-        """Construct the hybrid layer to compute features of cutom filters.
+        """Construct the hybrid layer to compute features of custom filters.
 
         Arguments:
         ---------
@@ -364,18 +366,20 @@ class InceptionNetwork(BaseDeepNetwork):
 
         return x
 
-    def _shortcut_layer(self, input_tensor, out_tensor, padding="same", use_bias=False):
+    def _shortcut_layer(self, input_tensor, output_tensor, padding="same", use_bias=False):
         import tensorflow as tf
 
+        n_out_filters = int(output_tensor.shape[-1])
+
         shortcut_y = tf.keras.layers.Conv1D(
-            filters=int(out_tensor.shape[-1]),
+            filters=n_out_filters,
             kernel_size=1,
             padding=padding,
             use_bias=use_bias,
         )(input_tensor)
         shortcut_y = tf.keras.layers.BatchNormalization()(shortcut_y)
 
-        x = tf.keras.layers.Add()([shortcut_y, out_tensor])
+        x = tf.keras.layers.Add()([shortcut_y, output_tensor])
         x = tf.keras.layers.Activation("relu")(x)
         return x
 
@@ -475,6 +479,7 @@ class InceptionNetwork(BaseDeepNetwork):
                 x = self._shortcut_layer(input_res, x, padding=self._padding[d])
                 input_res = x
 
-        gap_layer = tf.keras.layers.GlobalAveragePooling1D()(x)
+        if self.use_gap:
+            x = tf.keras.layers.GlobalAveragePooling1D()(x)
 
-        return input_layer, gap_layer
+        return input_layer, x

@@ -2158,6 +2158,17 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "arno-dutra",
+      "name": "Arno Dutra",
+      "avatar_url": "https://avatars.githubusercontent.com/u/119803640?v=4",
+      "profile": "https://github.com/arno-dutra",
+      "contributions": [
+        "code",
+        "bug",
+        "doc"
+      ]
     }
   ]
 }

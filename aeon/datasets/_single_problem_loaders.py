@@ -24,6 +24,9 @@ __all__ = [
     "load_osuleaf",
     "load_italy_power_demand",
     "load_basic_motions",
+    "load_trace",
+    "load_cbf",
+    "load_coffee",
     "load_japanese_vowels",
     "load_solar",
     "load_shampoo_sales",
@@ -192,6 +195,150 @@ def load_italy_power_demand(split=None, return_X_y=True, return_type="numpy3d"):
     Details:http://timeseriesclassification.com/description.php?Dataset=ItalyPowerDemand
     """
     name = "ItalyPowerDemand"
+    return _load_tsc_dataset(name, split, return_X_y, return_type=return_type)
+
+
+def load_trace(split=None, return_X_y=True, return_type="numpy3d"):
+    """Load Trace univariate time series classification problem.
+
+    Parameters
+    ----------
+    split: None or one of "TRAIN", "TEST", default=None
+        Whether to load the train or test instances of the problem. By default it
+        loads both train and test instances into a single array.
+    return_X_y: bool, default=True
+        If True, returns (features, target) separately instead of as single data
+        structure.
+    return_type: string, optional (default="numpy3d")
+        Data structure to use for time series, should be either "numpy2d" or "numpy3d".
+
+    Raises
+    ------
+    ValueError is raised if the data cannot be stored in the requested return_type.
+
+    Returns
+    -------
+    X: np.ndarray
+        shape (n_cases, 1, 275) (return_type="numpy3d") or shape (n_cases,
+        275) (return_type="numpy2d"), where n_cases where n_cases is either 100
+        (split = "train") 100 (split="test") or 200.
+    y: np.ndarray
+        1D array of length 100, 100 or 200, only returned if return_X_y is True
+        The class labels for each time series instance in X
+        If return_X_y is False, y is appended to X instead.
+
+
+    Examples
+    --------
+    >>> from aeon.datasets import load_trace
+    >>> X, y = load_trace()
+
+    Notes
+    -----
+    Dimensionality:     univariate
+    Series length:      275
+    Train cases:        100
+    Test cases:         100
+    Number of classes:  4
+    Details:https://www.timeseriesclassification.com/description.php?Dataset=Trace
+    """
+    name = "Trace"
+    return _load_tsc_dataset(name, split, return_X_y, return_type=return_type)
+
+
+def load_cbf(split=None, return_X_y=True, return_type="numpy3d"):
+    """Load Trace univariate time series classification problem.
+
+    Parameters
+    ----------
+    split: None or one of "TRAIN", "TEST", default=None
+        Whether to load the train or test instances of the problem. By default it
+        loads both train and test instances into a single array.
+    return_X_y: bool, default=True
+        If True, returns (features, target) separately instead of as single data
+        structure.
+    return_type: string, optional (default="numpy3d")
+        Data structure to use for time series, should be either "numpy2d" or "numpy3d".
+
+    Raises
+    ------
+    ValueError is raised if the data cannot be stored in the requested return_type.
+
+    Returns
+    -------
+    X: np.ndarray
+        shape (n_cases, 1, 128) (return_type="numpy3d") or shape (n_cases,
+        128) (return_type="numpy2d"), where n_cases where n_cases is either 30
+        (split = "train") 900 (split="test") or 930.
+    y: np.ndarray
+        1D array of length 30, 900 or 930, only returned if return_X_y is True
+        The class labels for each time series instance in X
+        If return_X_y is False, y is appended to X instead.
+
+
+    Examples
+    --------
+    >>> from aeon.datasets import load_cbf
+    >>> X, y = load_cbf()
+
+    Notes
+    -----
+    Dimensionality:     univariate
+    Series length:      128
+    Train cases:        30
+    Test cases:         900
+    Number of classes:  3
+    Details:https://www.timeseriesclassification.com/description.php?Dataset=CBF
+    """
+    name = "CBF"
+    return _load_tsc_dataset(name, split, return_X_y, return_type=return_type)
+
+
+def load_coffee(split=None, return_X_y=True, return_type="numpy3d"):
+    """Load Trace univariate time series classification problem.
+
+    Parameters
+    ----------
+    split: None or one of "TRAIN", "TEST", default=None
+        Whether to load the train or test instances of the problem. By default it
+        loads both train and test instances into a single array.
+    return_X_y: bool, default=True
+        If True, returns (features, target) separately instead of as single data
+        structure.
+    return_type: string, optional (default="numpy3d")
+        Data structure to use for time series, should be either "numpy2d" or "numpy3d".
+
+    Raises
+    ------
+    ValueError is raised if the data cannot be stored in the requested return_type.
+
+    Returns
+    -------
+    X: np.ndarray
+        shape (n_cases, 1, 286) (return_type="numpy3d") or shape (n_cases,
+        286) (return_type="numpy2d"), where n_cases where n_cases is either 28
+        (split = "train") 28 (split="test") or 56.
+    y: np.ndarray
+        1D array of length 28, 28 or 56, only returned if return_X_y is True
+        The class labels for each time series instance in X
+        If return_X_y is False, y is appended to X instead.
+
+
+    Examples
+    --------
+    >>> from aeon.datasets import load_coffee
+    >>> X, y = load_coffee()
+
+    Notes
+    -----
+    Dimensionality:     univariate
+    Series length:      286
+    Train cases:        28
+    Test cases:         28
+    Number of classes:  2
+    Details:https://www.timeseriesclassification.com/description.php?Dataset=Coffee
+    """
+    name = "Coffee"
     return _load_tsc_dataset(name, split, return_X_y, return_type=return_type)
 
 

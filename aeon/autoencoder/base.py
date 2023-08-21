@@ -281,10 +281,10 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         """
         return super().get_test_params(parameter_set=parameter_set)
     
-    def extract_encoder(self):
-        if not self._is_fitted:
+    def extract_encoder(self, check_is_fitted=True) -> ExtractedEncoder:
+        if not self._is_fitted and check_is_fitted:
             raise RuntimeError("Encoder not fitted yet")
-        return ExtractedEncoder(self.encoder, self)
+        return ExtractedEncoder(model=self.encoder, autoencoder=self)
 
     @abstractmethod
     def _fit(self, X):  # TODO @arno-dutra : OK

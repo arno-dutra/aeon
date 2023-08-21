@@ -84,7 +84,10 @@ class ResNetDecoderNetwork(BaseDeepNetwork):
         n_out_filters = int(output_tensor.shape[-1])
 
         shortcut_layer = tf.keras.layers.Conv1DTranspose(
-            filters=n_out_filters, kernel_size=1, padding=padding, use_bias=use_bias
+            filters=n_out_filters, 
+            kernel_size=1, 
+            padding=padding, 
+            use_bias=use_bias,
         )(input_tensor)
         shortcut_layer = tf.keras.layers.BatchNormalization()(shortcut_layer)
 

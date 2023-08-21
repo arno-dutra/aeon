@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Residual Network (ResNet) for autoencoding."""
+"""Residual Network (ResNet) for classification."""
 
 __author__ = ["Arno Dutra", "James-Large", "AurumnPegasus", "nilesh05apr", "hadifawaz1999"]
 __all__ = ["ResNetAutoEncoder"]
@@ -11,15 +11,14 @@ from copy import deepcopy
 from sklearn.utils import check_random_state
 
 from aeon.autoencoder.deep_learning.base import BaseDeepAutoEncoder
-from aeon.networks.resnet import ResNetNetwork
-from aeon.networks.resnet_decoder import ResNetDecoderNetwork
+from aeon.networks.fcn import FCNNetwork
+from aeon.networks.fcn_decoder import FCNDecoderNetwork
 from aeon.utils.validation._dependencies import _check_dl_dependencies
-import inspect
 
 _check_dl_dependencies(severity="warning")
 
 
-class ResNetAutoEncoder(BaseDeepAutoEncoder):
+class FCNAutoEncoder(BaseDeepAutoEncoder):
     """
     Residual Neural Network as described in [1].
 
@@ -107,12 +106,12 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
 
     Examples
     --------
-    >>> from aeon.autoencoder.deep_learning.resnet import ResNetAutoEncoder
+    >>> from aeon.autoencoder.deep_learning.resnet import ResNetClassifier
     >>> from aeon.datasets import load_unit_test
     >>> X_train, y_train = load_unit_test(split="train")
-    >>> ae = ResNetAutoEncoder(n_epochs=20, bacth_size=4) # doctest: +SKIP
-    >>> ae.fit(X_train, Y_train) # doctest: +SKIP
-    ResNetAutoEncoder(...)
+    >>> clf = ResNetClassifier(n_epochs=20, bacth_size=4) # doctest: +SKIP
+    >>> clf.fit(X_train, Y_train) # doctest: +SKIP
+    ResNetClassifier(...)
     """
 
     _tags = {
@@ -123,8 +122,6 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
 
     def __init__(
         self,
-        n_residual_blocks=3,
-        n_conv_per_residual_block=3,
         n_filters=None,
         kernel_size=None,
         strides=1,
@@ -149,10 +146,7 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         bottleneck_size=128,
     ):
         _check_dl_dependencies(severity="error")
-        super(ResNetAutoEncoder, self).__init__(last_file_name=last_file_name)
-        self.n_residual_blocks = n_residual_blocks
-        self.n_conv_per_residual_block = n_conv_per_residual_block
-        self.n_deconv_per_residual_block = n_conv_per_residual_block
+        super(FCNAutoEncoder, self).__init__(last_file_name=last_file_name)
         self.n_filters = n_filters
         self.kernel_size = kernel_size
         self.padding = padding
@@ -176,10 +170,8 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         self.optimizer = optimizer
         self.history = None
         self.bottleneck_size = bottleneck_size
-        self.__name__ = "ResNetAutoEncoder"
-        self._network_encoder = ResNetNetwork(
-            n_residual_blocks=self.n_residual_blocks,
-            n_conv_per_residual_block=self.n_conv_per_residual_block,
+        self.__name__ = "FCNAutoEncoder"
+        self._network_encoder = FCNNetwork(
             n_filters=self.n_filters,
             kernel_size=self.kernel_size,
             strides=self.strides,
@@ -189,9 +181,7 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
             padding=self.padding,
             random_state=random_state,
         )
-        self._network_decoder = ResNetDecoderNetwork(
-            n_residual_blocks=self.n_residual_blocks,
-            n_deconv_per_residual_block=self.n_deconv_per_residual_block,
+        self._network_decoder = FCNDecoderNetwork(
             n_filters=self.n_filters,
             kernel_size=self.kernel_size,
             strides=self.strides,
@@ -252,6 +242,8 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         self.encoder = tf.keras.models.Model(inputs=input_layer, outputs=bottleneck_layer)
         self.decoder = tf.keras.models.Model(inputs=bottleneck_layer, outputs=output_layer_decoder)
 
+        # autoencoder = tf.keras.models.Model(inputs=input_layer, outputs=output_layer_decoder)
+        # autoencoder = self.decoder(self.encoder)
         autoencoder = tf.keras.Sequential([
             self.encoder,
             self.decoder

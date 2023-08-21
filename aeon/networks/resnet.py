@@ -104,7 +104,10 @@ class ResNetNetwork(BaseDeepNetwork):
         n_out_filters = int(output_tensor.shape[-1])
 
         shortcut_layer = tf.keras.layers.Conv1D(
-            filters=n_out_filters, kernel_size=1, padding=padding, use_bias=use_bias
+            filters=n_out_filters, 
+            kernel_size=1, 
+            padding=padding, 
+            use_bias=use_bias,
         )(input_tensor)
         shortcut_layer = tf.keras.layers.BatchNormalization()(shortcut_layer)
 
@@ -177,7 +180,7 @@ class ResNetNetwork(BaseDeepNetwork):
                 conv = tf.keras.layers.Conv1D(
                     filters=self._n_filters[d],
                     kernel_size=self._kernel_size[c],
-                    strides=self._kernel_size[c],
+                    strides=self._strides[c],
                     padding=self._padding[c],
                     dilation_rate=self._dilation_rate[c],
                 )(x)

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Residual Network (ResNet) for autoencoding."""
+"""Multi layered perceptron (MLP) for autoencoding."""
 
 __author__ = ["Arno Dutra", "James-Large", "AurumnPegasus", "nilesh05apr", "hadifawaz1999"]
-__all__ = ["ResNetAutoEncoder"]
+__all__ = ["MLPAutoEncoder"]
 
 import os
 import time
@@ -11,42 +11,18 @@ from copy import deepcopy
 from sklearn.utils import check_random_state
 
 from aeon.autoencoder.deep_learning.base import BaseDeepAutoEncoder
-from aeon.networks.resnet import ResNetNetwork
-from aeon.networks.resnet_decoder import ResNetDecoderNetwork
+from aeon.networks.mlp import MLPNetwork
 from aeon.utils.validation._dependencies import _check_dl_dependencies
-import inspect
 
 _check_dl_dependencies(severity="warning")
 
 
-class ResNetAutoEncoder(BaseDeepAutoEncoder):
+class MLPAutoEncoder(BaseDeepAutoEncoder):
     """
     Residual Neural Network as described in [1].
 
     Parameters
     ----------
-        n_residual_blocks           : int, default = 3,
-            the number of residual blocks of ResNet's model
-        n_conv_per_residual_block   : int, default = 3,
-            the number of convolution blocks in each residual block
-        n_filters                   : int or list of int, default = [128, 64, 64],
-            the number of convolution filters for all the convolution layers in the same
-            residual block, if not a list, the same number of filters is used in all
-            convolutions of all residual blocks.
-        kernel_sizes                : int or list of int, default = [8, 5, 3],
-            the kernel size of all the convolution layers in one residual block, if not
-            a list, the same kernel size is used in all convolution layers
-        strides                     : int or list of int, default = 1,
-            the strides of convolution kernels in each of the
-            convolution layers in one residual block, if not
-            a list, the same kernel size is used in all convolution layers
-        dilation_rate               : int or list of int, default = 1,
-            the dilation rate of the convolution layers in one residual block, if not
-            a list, the same kernel size is used in all convolution layers
-        padding                     : str or list of str, default = 'padding',
-            the type of padding used in the convolution layers
-            in one residual block, if not
-            a list, the same kernel size is used in all convolution layers
         activation                  : str or list of str, default = 'relu',
             keras activation used in the convolution layers
             in one residual block, if not
@@ -94,6 +70,7 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         bottleneck_size : int, default = 128,
             size of the bottleneck between encoder and decoder
 
+
     Notes
     -----
     Adapted from the implementation from source code
@@ -107,12 +84,12 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
 
     Examples
     --------
-    >>> from aeon.autoencoder.deep_learning.resnet import ResNetAutoEncoder
+    >>> from aeon.autoencoder.deep_learning.mlp import MLPClassifier
     >>> from aeon.datasets import load_unit_test
     >>> X_train, y_train = load_unit_test(split="train")
-    >>> ae = ResNetAutoEncoder(n_epochs=20, bacth_size=4) # doctest: +SKIP
-    >>> ae.fit(X_train, Y_train) # doctest: +SKIP
-    ResNetAutoEncoder(...)
+    >>> clf = MLPClassifier(n_epochs=20, bacth_size=4) # doctest: +SKIP
+    >>> clf.fit(X_train, Y_train) # doctest: +SKIP
+    MLPClassifier(...)
     """
 
     _tags = {
@@ -123,13 +100,6 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
 
     def __init__(
         self,
-        n_residual_blocks=3,
-        n_conv_per_residual_block=3,
-        n_filters=None,
-        kernel_size=None,
-        strides=1,
-        dilation_rate=1,
-        padding="same",
         activation="relu",
         use_bias=True,
         n_epochs=1500,
@@ -149,15 +119,8 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         bottleneck_size=128,
     ):
         _check_dl_dependencies(severity="error")
-        super(ResNetAutoEncoder, self).__init__(last_file_name=last_file_name)
-        self.n_residual_blocks = n_residual_blocks
-        self.n_conv_per_residual_block = n_conv_per_residual_block
-        self.n_deconv_per_residual_block = n_conv_per_residual_block
-        self.n_filters = n_filters
-        self.kernel_size = kernel_size
-        self.padding = padding
-        self.strides = strides
-        self.dilation_rate = dilation_rate
+        super(MLPAutoEncoder, self).__init__(last_file_name=last_file_name)
+        self.activation = activation
         self.n_epochs = n_epochs
         self.callbacks = callbacks
         self.verbose = verbose
@@ -166,7 +129,6 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         self.batch_size = batch_size
         self.use_mini_batch_size = use_mini_batch_size
         self.random_state = random_state
-        self.activation = activation
         self.use_bias = use_bias
         self.file_path = file_path
         self.save_best_model = save_best_model
@@ -176,29 +138,12 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         self.optimizer = optimizer
         self.history = None
         self.bottleneck_size = bottleneck_size
-        self.__name__ = "ResNetAutoEncoder"
-        self._network_encoder = ResNetNetwork(
-            n_residual_blocks=self.n_residual_blocks,
-            n_conv_per_residual_block=self.n_conv_per_residual_block,
-            n_filters=self.n_filters,
-            kernel_size=self.kernel_size,
-            strides=self.strides,
-            use_bias=self.use_bias,
-            activation=self.activation,
-            dilation_rate=self.dilation_rate,
-            padding=self.padding,
+        self.__name__ = "MLPAutoEncoder"
+        self._network_encoder = MLPNetwork(
             random_state=random_state,
         )
-        self._network_decoder = ResNetDecoderNetwork(
-            n_residual_blocks=self.n_residual_blocks,
-            n_deconv_per_residual_block=self.n_deconv_per_residual_block,
-            n_filters=self.n_filters,
-            kernel_size=self.kernel_size,
-            strides=self.strides,
-            use_bias=self.use_bias,
-            activation=self.activation,
-            dilation_rate=self.dilation_rate,
-            padding=self.padding,
+        self._network_decoder = MLPNetwork(
+            include_input=False,
             random_state=random_state,
         )
 
@@ -243,15 +188,17 @@ class ResNetAutoEncoder(BaseDeepAutoEncoder):
         bottleneck_layer = tf.keras.layers.Dense(
             units=self.bottleneck_size, activation="relu", use_bias=self.use_bias
         )(output_layer_encoder)
-        output_layer_encoder = tf.keras.layers.Dense(
+        _, output_layer_decoder = self._network_decoder.build_network(input_layer=bottleneck_layer, **kwargs)
+        output_layer = tf.keras.layers.Dense(
             units=input_size, activation="relu", use_bias=self.use_bias
-        )(bottleneck_layer)
-        output_layer_encoder = tf.keras.layers.Reshape(input_shape)(output_layer_encoder)
-        _, output_layer_decoder = self._network_decoder.build_network(output_layer_encoder, **kwargs)
+        )(output_layer_decoder)
+        output_layer = tf.keras.layers.Reshape(input_shape)(output_layer)
 
         self.encoder = tf.keras.models.Model(inputs=input_layer, outputs=bottleneck_layer)
-        self.decoder = tf.keras.models.Model(inputs=bottleneck_layer, outputs=output_layer_decoder)
+        self.decoder = tf.keras.models.Model(inputs=bottleneck_layer, outputs=output_layer)
 
+        # autoencoder = tf.keras.models.Model(inputs=input_layer, outputs=output_layer)
+        # autoencoder = self.decoder(self.encoder)
         autoencoder = tf.keras.Sequential([
             self.encoder,
             self.decoder

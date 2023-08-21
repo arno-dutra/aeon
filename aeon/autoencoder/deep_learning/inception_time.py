@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""InceptionTime classifier."""
+"""Inception time (ITN) for autoencoding."""
 
-__author__ = ["Arno Dutra", "James-Large", "TonyBagnall", "MatthewMiddlehurst", "hadifawaz1999"]
+__author__ = ["Arno Dutra", "James-Large", "AurumnPegasus", "nilesh05apr", "hadifawaz1999"]
 __all__ = ["InceptionTimeAutoEncoder"]
 
+import gc
 import os
 import time
 from copy import deepcopy
@@ -13,21 +14,23 @@ from sklearn.utils import check_random_state
 
 from aeon.autoencoder.base import BaseAutoEncoder
 from aeon.autoencoder.deep_learning.base import BaseDeepAutoEncoder
+from aeon.autoencoder.extracted_encoder import ExtractedEncoder
 from aeon.networks.inception import InceptionNetwork
 from aeon.networks.inception_decoder import InceptionDecoderNetwork
 from aeon.utils.validation._dependencies import _check_dl_dependencies
+from aeon.base import BaseEstimator
+from aeon.utils.validation._dependencies import _check_estimator_deps
+import tensorflow as tf
 
-_check_dl_dependencies(severity="warning")
 
-
-class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
+class InceptionTimeAutoEncoder(BaseAutoEncoder):
     """InceptionTime ensemble autoencoder.
 
-    Ensemble of IndividualInceptionTimeAutoEncoder objects.
+    Ensemble of IndividualInceptionAutoEncoder objects, as described in [1].
 
     Parameters
     ----------
-        n_classifiers       : int, default = 5,
+        n_autoencoders       : int, default = 5,
             the number of Inception models used for the
             Ensemble in order to create
             InceptionTime.
@@ -48,7 +51,7 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
             module, if not a list,
             the same is used in all inception modules
         use_max_pooling     : bool or list of bool, default = True,
-            conditioning wether or not to use max pooling layer
+            conditioning whether or not to use max pooling layer
             in inception modules,if not a list,
             the same is used in all inception modules
         max_pool_size       : int or list of int, default = 3,
@@ -71,34 +74,34 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
             module, if not a list,
             the same is used in all inception modules
         use_bias            : bool or list of bool, default = False,
-            conditioning wether or not convolutions should
+            conditioning whether or not convolutions should
             use bias values in each inception
             module, if not a list,
             the same is used in all inception modules
-        use_residual        : bool, default = True,
-            condition wether or not to use residual
+        use_residual : bool, default = True,
+            condition whether or not to use residual
             connections all over Inception
-        use_bottleneck      : bool, default = True,
-            confition wether or not to use bottlesnecks
+        itn_use_bottleneck : bool, default = True,
+            condition whether or not to use bottlenecks inside the inception model
             all over Inception
-        bottleneck_size     : int, default = 32,
-            the bottleneck size in case use_bottleneck = True
-        use_custom_filters  : bool, default = True,
-            condition on wether or not to use custom
+        itn_bottleneck_size : int, default = 32,
+            the bottleneck size in case itn_use_bottleneck = True
+        use_custom_filters : bool, default = False,
+            condition on whether or not to use custom
             filters in the first inception module
-        batch_size          : int, default = 64
+        batch_size : int, default = 64
             the number of samples per gradient update.
         use_mini_batch_size : bool, default = False
             condition on using the mini batch size
             formula Wang et al.
-        n_epochs           : int, default = 1500
+        n_epochs : int, default = 1500
             the number of epochs to train the model.
-        callbacks           : callable or None, default
+        callbacks : callable or None, default
         ReduceOnPlateau and ModelCheckpoint
             list of tf.keras.callbacks.Callback objects.
-        file_path           : str, default = "./"
+        file_path : str, default = "./"
             file_path when saving model_Checkpoint callback
-        save_best_model     : bool, default = False
+        save_best_model : bool, default = False
             Whether or not to save the best model, if the
             modelcheckpoint callback is used by default,
             this condition, if True, will prevent the
@@ -122,9 +125,11 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
             whether to output extra information
         optimizer           : keras optimizer, default = Adam
         loss                : keras loss,
-                              default = categorical_crossentropy
+                              default = mean_squared_error
         metrics             : keras metrics, default = None,
         will be set to accuracy as default if None
+        bottleneck_size : int, default = 128,
+            size of the bottleneck between encoder and decoder
 
     Notes
     -----
@@ -152,25 +157,22 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
 
     def __init__(
         self,
-        n_classifiers=5,
+        n_autoencoders=5,
         nb_filters=32,
         nb_conv_per_layer=3,
         kernel_size=40,
         use_max_pooling=True,
         max_pool_size=3,
-        use_max_pooling_between_blocks=False,
-        between_blocks_max_pool_size=3,
         strides=1,
         dilation_rate=1,
         padding="same",
         activation="relu",
         use_bias=False,
         use_residual=True,
-        use_bottleneck=True,
-        bottleneck_size=32,
+        itn_use_bottleneck=True,
+        itn_bottleneck_size=32,
         depth=6,
-        use_custom_filters=True,
-        use_gap_encoder=True,
+        use_custom_filters=False,
         file_path="./",
         save_last_model=False,
         save_best_model=False,
@@ -182,33 +184,31 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
         callbacks=None,
         random_state=None,
         verbose=False,
-        loss="mean_squarred_error",
+        loss="mean_squared_error",
         metrics=None,
         optimizer=None,
+        bottleneck_size=128,
     ):
-        self.n_classifiers = n_classifiers
+        self.n_autoencoders = n_autoencoders
 
         self.nb_filters = nb_filters
         self.nb_conv_per_layer = nb_conv_per_layer
         self.use_max_pooling = use_max_pooling
         self.max_pool_size = max_pool_size
-        self.use_max_pooling_between_blocks = use_max_pooling_between_blocks
-        self.between_blocks_max_pool_size = between_blocks_max_pool_size
         self.strides = strides
         self.dilation_rate = dilation_rate
         self.padding = padding
         self.activation = activation
         self.use_bias = use_bias
         self.use_residual = use_residual
-        self.use_bottleneck = use_bottleneck
-        self.bottleneck_size = bottleneck_size
+        self.itn_use_bottleneck = itn_use_bottleneck
+        self.itn_bottleneck_size = itn_bottleneck_size
         self.depth = depth
         self.kernel_size = kernel_size
         self.batch_size = batch_size
         self.n_epochs = n_epochs
 
         self.use_custom_filters = use_custom_filters
-        self.use_gap_encoder = use_gap_encoder
 
         self.file_path = file_path
 
@@ -225,47 +225,62 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
         self.metrics = metrics
         self.optimizer = optimizer
 
-        self.autoencoder_ = []
+        self._autoencoders = []
+
+        self.__name__ = "InceptionTimeAutoEncoder"
+        self.bottleneck_size = bottleneck_size
 
         super(InceptionTimeAutoEncoder, self).__init__()
 
+    # override the extract_encoder method defined in aeon.autoencoder.base.BaseAutoEncoder
+    def extract_encoder(self, check_is_fitted=True) -> ExtractedEncoder:
+        """Extract the encoder from the autoencoder.
+
+        Parameters
+        ----------
+        check_is_fitted : bool, default = True
+            Whether or not to check if the model is fitted.
+
+        Returns
+        -------
+        extracted_encoder : ExtractedEncoder
+            The extracted encoder.
+        """
+
+        return InceptionTimeExtractedEncoder(models=[ae.extract_encoder(check_is_fitted=check_is_fitted) for ae in self._autoencoders], autoencoder=self)
+
     def _fit(self, X):
-        """Fit the ensemble of IndividualInceptionClassifier models.
+        """Fit the ensemble of IndividualInceptionAutoEncoder models.
 
         Arguments:
         ----------
 
         X : np.ndarray of shape = (n_instances (n), n_channels (c), n_timepoints (m))
             The training input samples.
-        y : np.ndarray of shape n
-            The training data class labels.
 
         Returns
         -------
         self : object
         """
-        self.autoencoder_ = []
+        self._autoencoders = []
         rng = check_random_state(self.random_state)
 
-        for n in range(0, self.n_classifiers):
+        for n in range(0, self.n_autoencoders):
             ae = IndividualInceptionAutoEncoder(
                 nb_filters=self.nb_filters,
                 nb_conv_per_layer=self.nb_conv_per_layer,
                 kernel_size=self.kernel_size,
                 use_max_pooling=self.use_max_pooling,
                 max_pool_size=self.max_pool_size,
-                use_max_pooling_between_blocks=self.use_max_pooling_between_blocks,
-                between_blocks_max_pool_size=self.between_blocks_max_pool_size,
                 strides=self.strides,
                 dilation_rate=self.dilation_rate,
                 padding=self.padding,
                 activation=self.activation,
                 use_bias=self.use_bias,
                 use_residual=self.use_residual,
-                use_bottleneck=self.use_bottleneck,
+                itn_use_bottleneck=self.itn_use_bottleneck,
                 depth=self.depth,
                 use_custom_filters=self.use_custom_filters,
-                use_gap_encoder=self.use_gap_encoder,
                 file_path=self.file_path,
                 save_best_model=self.save_best_model,
                 save_last_model=self.save_last_model,
@@ -280,9 +295,11 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
                 optimizer=self.optimizer,
                 random_state=rng.randint(0, np.iinfo(np.int32).max),
                 verbose=self.verbose,
+                bottleneck_size=self.bottleneck_size,
             )
             ae.fit(X)
-            self.autoencoder_.append(ae)
+            self._autoencoders.append(ae)
+            gc.collect()
 
         return self
 
@@ -300,28 +317,14 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
         Y : np.ndarray of shape = (n_instances (n)), the predicted labels
 
         """
-        return self.predict_proba(X)
+        rng = check_random_state(self.random_state)  # ???
 
-    def _predict_proba(self, X) -> np.ndarray:
-        """Predict the proba of labels of the test set using InceptionTime.
-
-        Arguments:
-        ---------
-
-        X : np.ndarray of shape = (n_instances (n), n_channels (c), n_timepoints (m))
-            The testing input samples.
-
-        Returns
-        -------
-        Y : np.ndarray of shape = (n_instances (n), n_classes (c)), the predicted probs
-
-        """
         probs = np.zeros(X.shape)
 
-        for ae in self.autoencoder_:
-            probs += ae._predict_proba(X)
+        for ae in self._autoencoders:
+            probs += ae.predict(X)
 
-        probs = probs / self.n_classifiers
+        probs = probs / self.n_autoencoders
 
         return probs
 
@@ -353,14 +356,13 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):  # TODO @arno-dutra: OK
             "batch_size": 4,
             "kernel_size": 4,
             "use_residual": False,
-            "use_bottleneck": True,
         }
 
         return [param1]
 
 
-class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: OK
-    """Single InceptionTime classifier.
+class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):
+    """Single InceptionTime autoencoder.
 
     Parameters
     ----------
@@ -376,7 +378,7 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
             the head kernel size used for each inception module, if not a list,
             the same is used in all inception modules
         use_max_pooling     : bool or list of bool, default = True,
-            conditioning wether or not to use max pooling layer
+            conditioning whether or not to use max pooling layer
             in inception modules,if not a list,
             the same is used in all inception modules
         max_pool_size       : int or list of int, default = 3,
@@ -397,18 +399,18 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
             the activation function used in each inception module, if not a list,
             the same is used in all inception modules
         use_bias            : bool or list of bool, default = False,
-            conditioning wether or not convolutions should
+            conditioning whether or not convolutions should
             use bias values in each inception
             module, if not a list,
             the same is used in all inception modules
         use_residual        : bool, default = True,
-            condition wether or not to use residual connections all over Inception
-        use_bottleneck      : bool, default = True,
-            confition wether or not to use bottlesnecks all over Inception
-        bottleneck_size     : int, default = 32,
-            the bottleneck size in case use_bottleneck = True
-        use_custom_filters  : bool, default = True,
-            condition on wether or not to use custom filters
+            condition whether or not to use residual connections all over Inception
+        itn_use_bottleneck      : bool, default = True,
+            confition whether or not to use bottlenecks all over Inception
+        itn_bottleneck_size     : int, default = 32,
+            the bottleneck size in case itn_use_bottleneck = True
+        use_custom_filters  : bool, default = False,
+            condition on whether or not to use custom filters
             in the first inception module
         batch_size          : int, default = 64
             the number of samples per gradient update.
@@ -447,6 +449,8 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         loss                : keras loss, default = categorical_crossentropy
         metrics             : keras metrics, default = None, will be set
         to accuracy as default if None
+        bottleneck_size : int, default = 128,
+            size of the bottleneck between encoder and decoder
 
     Notes
     -----
@@ -470,19 +474,16 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         kernel_size=40,
         use_max_pooling=True,
         max_pool_size=3,
-        use_max_pooling_between_blocks=False,
-        between_blocks_max_pool_size=3,
         strides=1,
         dilation_rate=1,
         padding="same",
         activation="relu",
         use_bias=False,
         use_residual=True,
-        use_bottleneck=True,
-        bottleneck_size=32,
+        itn_use_bottleneck=True,
+        itn_bottleneck_size=32,
         depth=6,
-        use_gap_encoder=True,
-        use_custom_filters=True,
+        use_custom_filters=False,
         file_path="./",
         save_best_model=False,
         save_last_model=False,
@@ -494,9 +495,10 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         callbacks=None,
         random_state=None,
         verbose=False,
-        loss="mean_squarred_error",
+        loss="mean_squared_error",
         metrics=None,
         optimizer=None,
+        bottleneck_size=128,
     ):
         _check_dl_dependencies(severity="error")
         super(IndividualInceptionAutoEncoder, self).__init__(
@@ -507,21 +509,18 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         self.nb_conv_per_layer = nb_conv_per_layer
         self.use_max_pooling = use_max_pooling
         self.max_pool_size = max_pool_size
-        self.use_max_pooling_between_blocks = use_max_pooling_between_blocks
-        self.between_blocks_max_pool_size = between_blocks_max_pool_size
         self.strides = strides
         self.dilation_rate = dilation_rate
         self.padding = padding
         self.activation = activation
         self.use_bias = use_bias
         self.use_residual = use_residual
-        self.use_bottleneck = use_bottleneck
-        self.bottleneck_size = bottleneck_size
+        self.itn_use_bottleneck = itn_use_bottleneck
+        self.itn_bottleneck_size = itn_bottleneck_size
         self.depth = depth
         self.kernel_size = kernel_size
         self.batch_size = batch_size
         self.n_epochs = n_epochs
-        self.use_gap_encoder = use_gap_encoder
         self.use_custom_filters = use_custom_filters
 
         self.file_path = file_path
@@ -539,48 +538,41 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         self.metrics = metrics
         self.optimizer = optimizer
 
+        self.__name__ = "IndividualInceptionAutoEncoder"
+        self.bottleneck_size = bottleneck_size
+
         self._network_encoder = InceptionNetwork(
             nb_filters=self.nb_filters,
             nb_conv_per_layer=self.nb_conv_per_layer,
             kernel_size=self.kernel_size,
             use_max_pooling=self.use_max_pooling,
             max_pool_size=self.max_pool_size,
-            use_max_pooling_between_blocks=self.use_max_pooling_between_blocks,
-            between_blocks_max_pool_size=self.between_blocks_max_pool_size,
             strides=self.strides,
             dilation_rate=self.dilation_rate,
             padding=self.padding,
             activation=self.activation,
             use_bias=self.use_bias,
             use_residual=self.use_residual,
-            use_bottleneck=self.use_bottleneck,
-            bottleneck_size=self.bottleneck_size,
+            use_bottleneck=self.itn_use_bottleneck,
+            bottleneck_size=self.itn_bottleneck_size,
             depth=self.depth,
-            use_gap=self.use_gap_encoder,
             use_custom_filters=self.use_custom_filters,
         )
-
-        if isinstance(self.between_blocks_max_pool_size, list):
-            self.between_blocks_up_sampling_size = self.between_blocks_max_pool_size[::-1]
-        else:
-            self.between_blocks_up_sampling_size = self.between_blocks_max_pool_size
 
         self._network_decoder = InceptionDecoderNetwork(
             nb_filters=self.nb_filters,
             nb_conv_per_layer=self.nb_conv_per_layer,
             kernel_size=self.kernel_size,
-            use_up_sampling=self.use_max_pooling,
-            up_sampling_size=self.max_pool_size,  
-            use_up_sampling_between_blocks=self.use_max_pooling_between_blocks,  #
-            between_blocks_up_sampling_size=self.between_blocks_up_sampling_size,  #
+            use_max_pooling=self.use_max_pooling,
+            max_pool_size=self.max_pool_size,
             strides=self.strides,
             dilation_rate=self.dilation_rate,
             padding=self.padding,
             activation=self.activation,
             use_bias=self.use_bias,
             use_residual=self.use_residual,
-            use_bottleneck=self.use_bottleneck,
-            bottleneck_size=self.bottleneck_size,
+            use_bottleneck=self.itn_use_bottleneck,
+            bottleneck_size=self.itn_bottleneck_size,
             depth=self.depth,
             use_custom_filters=self.use_custom_filters,
         )
@@ -600,54 +592,58 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         """
         import tensorflow as tf
 
-        input_size = 1
-        for i_s in input_shape:
-            if i_s is not None:
-                input_size *= i_s
-
-        input_layer, output_layer_encoder = self._network_encoder.build_network(input_shape, **kwargs)
-        # output_layer = tf.keras.layers.Dense(
-        #     units=input_size, activation="relu", use_bias=self.use_bias
-        # )(output_layer_encoder)
-        # output_layer = tf.keras.layers.Reshape(input_shape)(output_layer)
-        _, output_layer_decoder = self._network_decoder.build_network(output_layer_encoder, **kwargs)
-        output_layer = tf.transpose(output_layer_decoder, perm=[0, 2, 1])
-        output_layer = tf.keras.layers.GlobalAveragePooling1D()(output_layer)
-        output_layer = tf.keras.layers.Reshape(input_shape)(output_layer)
-
-
-        model = tf.keras.models.Model(inputs=input_layer, outputs=output_layer)
-
         tf.random.set_seed(self.random_state)
+
+        self.optimizer_ = (
+            tf.keras.optimizers.Adam() 
+            if self.optimizer is None 
+            else self.optimizer
+        )
 
         if self.metrics is None:
             metrics = ["accuracy"]
         else:
             metrics = self.metrics
 
-        self.optimizer_ = (
-            tf.keras.optimizers.Adam() if self.optimizer is None else self.optimizer
-        )
+        input_size = 1
+        for i_s in input_shape:
+            if i_s is not None:
+                input_size *= i_s
 
-        model.compile(
+        input_layer, output_layer_encoder = self._network_encoder.build_network(input_shape, **kwargs)
+        bottleneck_layer = tf.keras.layers.Dense(
+            units=self.bottleneck_size, activation="relu", use_bias=self.use_bias
+        )(output_layer_encoder)
+        output_layer_encoder = tf.keras.layers.Dense(
+            units=input_size, activation="relu", use_bias=self.use_bias
+        )(bottleneck_layer)
+        output_layer_encoder = tf.keras.layers.Reshape(input_shape)(output_layer_encoder)
+        _, output_layer_decoder = self._network_decoder.build_network(output_layer_encoder, **kwargs)
+
+        self.encoder = tf.keras.models.Model(inputs=input_layer, outputs=bottleneck_layer)
+        self.decoder = tf.keras.models.Model(inputs=bottleneck_layer, outputs=output_layer_decoder)
+
+        autoencoder = tf.keras.Sequential([
+            self.encoder,
+            self.decoder
+            ])
+        autoencoder.compile(
             loss=self.loss,
             optimizer=self.optimizer_,
             metrics=metrics,
         )
 
-        return model
+        return autoencoder
 
     def _fit(self, X):
         """
-        Fit the classifier on the training set (X).
+        Fit the autoencoder on the training set (X).
 
         Parameters
         ----------
         X : array-like of shape = (n_instances, n_channels, n_timepoints)
             The training input samples. If a 2D array-like is passed,
             n_channels is assumed to be 1.
-        y : array-like, shape = (n_instances)
-            The training data class labels.
 
         Returns
         -------
@@ -669,7 +665,7 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         self.training_model_ = self.build_model(self.input_shape)
 
         if self.verbose:
-            self.training_model_.summary()
+            self.training_model_.summary(expand_nested=True)
 
         self.file_name_ = (
             self.best_file_name if self.save_best_model else str(time.time_ns())
@@ -711,10 +707,11 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
         if self.save_last_model:
             self.save_last_model_to_file(file_path=self.file_path)
 
+        gc.collect()
         return self
 
     @classmethod
-    def get_test_params(cls, parameter_set="default"):
+    def get_test_params(ae, parameter_set="default"):
         """Return testing parameter settings for the estimator.
 
         Parameters
@@ -740,7 +737,96 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):  # TODO @arno-dutra: 
             "batch_size": 4,
             "kernel_size": 4,
             "use_residual": False,
-            "use_bottleneck": True,
+            "itn_use_bottleneck": True,
         }
 
         return [param1]
+
+
+
+class InceptionTimeExtractedEncoder(BaseEstimator):
+    def __init__(self, models=None, autoencoder=None):
+        super(InceptionTimeExtractedEncoder, self).__init__()
+        _check_estimator_deps(self)
+
+        self.models = models
+        self.autoencoder = autoencoder
+        self.__name__ = autoencoder.__name__.replace("AutoEncoder", "Encoder")
+        self._is_fitted = True
+        self._estimator_type = "encoder"
+
+
+    def __call__(self, X, *args, use_transpose=True, mode="concat", **kwargs):
+        """ Encode the input data X to get the latent representation.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape = (n_instances (n), n_channels (c), n_timepoints (m)) if use_transpose=True else (n_instances (n), n_timepoints (m), n_channels (c))
+            The input samples.
+        use_transpose : bool, default = True
+            Whether or not to transpose the input data.
+        mode : str, default = "concat"
+            The mode to use to combine the latent representations of the individual autoencoders. Can be either "concat" or "mean".
+            "concat" will concatenate the latent representations of the individual autoencoders along the channel axis leading to a latent representation of shape (n_instances (n), latent_dim (d) * n_autoencoders (k))
+            "mean" will average the latent representations of the individual autoencoders along the channel axis leading to a latent representation of shape (n_instances (n), latent_dim (d))
+        
+        Returns
+        -------
+        X : np.ndarray of shape = (n_instances (n), latent_dim (d) * n_autoencoders (k)) if mode="concat" or (n_instances (n), latent_dim (d)) if mode="mean"
+        """
+        if use_transpose:
+            X = X.transpose(0, 2, 1)
+        
+        if mode == "concat":
+            X = np.concatenate([model(X, *args, **kwargs) for model in self.models], axis=2)
+        elif mode == "mean":
+            X = np.mean(np.stack([model(X, *args, **kwargs) for model in self.models], axis=2), axis=2)
+        else:
+            raise ValueError(f"Unknown mode {mode}. Must be either 'concat' or 'mean'.")
+        
+        X = X.numpy()
+
+        return X
+    
+    def save(self, path):
+        """
+        Save the encoder to a file path. The encoder is saved as many keras models.
+        
+        Parameters
+        ----------
+        path : str
+            The path to the folder where to save the encoder.
+            E.g. path = "path/to/folder/model.h5" will save the encoder as many keras models "path/to/folder/model.h5/model.part0of5.h5", "path/to/folder/model.h5/model.part1of5.h5", ..., "path/to/folder/model.h5/model.part4of5.h5"
+    
+        """
+        os.makedirs(path)
+        for i, model in enumerate(self.models):
+            model.save(path + f"/{path.split('/')[-1][::-1].split('.', 1)[-1][::-1]}.part{i}of{len(self.models)}.{path.split('.')[-1]}")
+
+    def load(self, path):
+        """
+        Load the encoder from a folder path. 
+        The encoder must have been saved using the save method.
+
+        Parameters
+        ----------
+        path : str
+            The path to the folder where to load the encoder.
+            E.g. path = "path/to/folder/model.h5" will load the encoder from the keras models "path/to/folder/model.h5/model.part0of5.h5", "path/to/folder/model.h5/model.part1of5.h5", ..., "path/to/folder/model.h5/model.part4of5.h5"
+        """
+
+        self.models = []
+        l = 0
+        for p in os.listdir(path):
+
+            l += p.endswith(".h5")
+        
+        try:
+            for i in range(l):
+                self.models.append(tf.keras.models.load_model(path + f"/{path.split('/')[-1][::-1].split('.', 1)[-1][::-1]}.part{i}of{l}.{path.split('.')[-1]}"))
+        except FileNotFoundError:
+            self.models = []
+            raise FileNotFoundError(f"Could not load the encoder from {path}. The encoder must have been saved using the save method. Make sure no other .h5 files should be present in the folder.")
+
+
+        self._is_fitted = True

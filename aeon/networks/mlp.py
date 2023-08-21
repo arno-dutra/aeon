@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Multi Layer Perceptron (MLP) (minus the final output layer)."""
 
-__author__ = ["James-Large", "Withington", "AurumnPegasus"]
+__author__ = ["James-Large", "Withington", "AurumnPegasus", "Arno Dutra"]
 
 from aeon.networks.base import BaseDeepNetwork
 from aeon.utils.validation._dependencies import _check_dl_dependencies
@@ -39,12 +39,18 @@ class MLPNetwork(BaseDeepNetwork):
     def __init__(
         self,
         random_state=0,
+        include_input=True,
+        units =[500, 500, 500],
+        dropout_rate=[0.1, 0.2, 0.2, 0.3],
     ):
         _check_dl_dependencies(severity="error")
         self.random_state = random_state
+        self.include_input = include_input
+        self.units = units
+        self.dropout_rate = dropout_rate
         super(MLPNetwork, self).__init__()
 
-    def build_network(self, input_shape, **kwargs):
+    def build_network(self, input_shape=None, input_layer=None, **kwargs):
         """Construct a network and return its input and output layers.
 
         Arguments
@@ -59,19 +65,20 @@ class MLPNetwork(BaseDeepNetwork):
         """
         from tensorflow import keras
 
-        # flattened because multivariate should be on same axis
-        input_layer = keras.layers.Input(input_shape)
-        input_layer_flattened = keras.layers.Flatten()(input_layer)
+        if self.include_input:
+            # flattened because multivariate should be on same axis
+            input_layer = keras.layers.Input(input_shape)
+            input_layer = keras.layers.Flatten()(input_layer)
 
-        layer_1 = keras.layers.Dropout(0.1)(input_layer_flattened)
-        layer_1 = keras.layers.Dense(500, activation="relu")(layer_1)
+        layer_1 = keras.layers.Dropout(self.dropout_rate[0])(input_layer)
+        layer_1 = keras.layers.Dense(self.units[0], activation="relu")(layer_1)
 
-        layer_2 = keras.layers.Dropout(0.2)(layer_1)
-        layer_2 = keras.layers.Dense(500, activation="relu")(layer_2)
+        layer_2 = keras.layers.Dropout(self.dropout_rate[1])(layer_1)
+        layer_2 = keras.layers.Dense(self.units[1], activation="relu")(layer_2)
 
-        layer_3 = keras.layers.Dropout(0.2)(layer_2)
-        layer_3 = keras.layers.Dense(500, activation="relu")(layer_3)
+        layer_3 = keras.layers.Dropout(self.dropout_rate[2])(layer_2)
+        layer_3 = keras.layers.Dense(self.units[2], activation="relu")(layer_3)
 
-        output_layer = keras.layers.Dropout(0.3)(layer_3)
+        output_layer = keras.layers.Dropout(self.dropout_rate[3])(layer_3)
 
         return input_layer, output_layer
