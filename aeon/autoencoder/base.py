@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Abstract base class for time series classifiers.
+Abstract base class for time series autoencoders.
 
-    class name: BaseClassifier
+    class name: BaseAutoEncoder
 
 Defining methods:
     fitting         - fit(self, X, y)
     predicting      - predict(self, X)
-                    - predict_proba(self, X)
+                    - predict_proba(self, X) (deprecated)
 
 Inherited inspection methods:
     hyper-parameter inspection  - get_params()
@@ -29,7 +29,6 @@ from abc import ABC, abstractmethod
 from warnings import warn
 
 import numpy as np
-import pandas as pd
 
 from aeon.base import BaseEstimator
 from aeon.datatypes import check_is_scitype, convert_to
@@ -39,21 +38,17 @@ from aeon.utils.validation._dependencies import _check_estimator_deps
 from aeon.autoencoder.extracted_encoder import ExtractedEncoder
 
 
-class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
-    """Abstract base class for time series autoencoder.
+class BaseAutoEncoder(BaseEstimator, ABC):
+    """Abstract base class for time series autoencoders.
 
     The base classifier specifies the methods and method signatures that all
-    classifiers have to implement. Attributes with an underscore suffix are set in the
+    autoencoders have to implement. Attributes with an underscore suffix are set in the
     method fit.
 
     Attributes
     ----------
-    classes_            : ndarray of class labels, possibly strings
-    n_classes_          : integer, number of classes (length of ``classes_``)
     fit_time_           : integer, time (in milliseconds) for fit to run.
     _X_metadata         : metadata/properties of X seen in fit
-    _class_dictionary   : dictionary mapping classes_ onto integers
-        0...``n_classes_``-1.
     _n_jobs     : number of threads to use in ``fit`` as determined by
         ``n_jobs``.
     _estimator_type     : string required by sklearn, set to "classifier"
@@ -70,13 +65,10 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         "python_version": None,  # PEP 440 python version specifier to limit versions
     }
 
-    def __init__(self):  # TODO @arno-dutra : OK
+    def __init__(self):
         # reserved attributes written to in fit
-        self.classes_ = []  # classes seen in y, unique labels
-        self.n_classes_ = 0  # number of unique classes in y
         self.fit_time_ = 0  # time elapsed in last fit call
         self._X_metadata = []  # metadata/properties of X seen in fit
-        self._class_dictionary = {}
         self._n_jobs = 1
 
         # required for compatibility with some sklearn interfaces e.g.       #
@@ -85,43 +77,6 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
 
         super(BaseAutoEncoder, self).__init__()
         _check_estimator_deps(self)
-
-    def __rmul__(self, other):  # TODO @arno-dutra : OK
-        """Magic * method, return concatenated ClassifierPipeline, transformers on left.
-
-        Overloaded multiplication operation for classifiers. Implemented for `other`
-        being a transformer, otherwise returns `NotImplemented`.
-
-        Parameters
-        ----------
-        other: `aeon` transformer, must inherit from BaseTransformer
-            otherwise, `NotImplemented` is returned
-
-        Returns
-        -------
-        ClassifierPipeline object, concatenation of `other` (first) with `self` (last).
-        """
-        from aeon.classification.compose import ClassifierPipeline
-        from aeon.transformations.base import BaseTransformer
-        from aeon.transformations.compose import TransformerPipeline
-        from aeon.transformations.series.adapt import TabularToSeriesAdaptor
-
-        # behaviour is implemented only if other inherits from BaseTransformer
-        #  in that case, distinctions arise from whether self or other is a pipeline
-        if isinstance(other, BaseTransformer):
-            # ClassifierPipeline already has the dunder method defined
-            if isinstance(self, ClassifierPipeline):
-                return other * self
-            # if other is a TransformerPipeline but self is not, first unwrap it
-            elif isinstance(other, TransformerPipeline):
-                return ClassifierPipeline(classifier=self, transformers=other.steps)
-            # if neither self nor other are a pipeline, construct a ClassifierPipeline
-            else:
-                return ClassifierPipeline(classifier=self, transformers=[other])
-        elif is_sklearn_transformer(other):
-            return TabularToSeriesAdaptor(other) * self
-        else:
-            return NotImplemented
 
     def fit(self, X):  # TODO @arno-dutra : OK
         """Fit time series autoencoder to training data.
@@ -181,8 +136,8 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         self._is_fitted = True
         return self
 
-    def predict(self, X) -> np.ndarray:  # TODO @arno-dutra : OK
-        """Predicts labels for time series in X.
+    def predict(self, X) -> np.ndarray:
+        """Make reconstruction of the time series in X.
 
         Parameters
         ----------
@@ -197,19 +152,18 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
 
         Returns
         -------
-        y : 1D np.array, of shape [n_instances] - predicted class labels
-            indices correspond to instance indices in X
+        Xhat : 1D np.array, of shape X.shape
+            Xhat is the reconstruction of X
         """
         self.check_is_fitted()
 
         # input checks for predict-like methods
         X = self._check_convert_X_for_predict(X)
 
-        # call internal _predict_proba
         return self._predict(X)
 
-    def predict_proba(self, X) -> np.ndarray:  # TODO @arno-dutra : OK
-        """Predicts labels probabilities for sequences in X.
+    def predict_proba(self, X) -> np.ndarray:
+        """Make reconstruction of the time series in X.
 
         Parameters
         ----------
@@ -234,8 +188,8 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         # call internal _predict_proba
         return self._predict_proba(X)
 
-    def score(self, X) -> float:  # TODO @arno-dutra : OK
-        """Scores predicted labels against ground truth labels on X.
+    def score(self, X) -> float:
+        """Scores reconstruction of the time series in X.
 
         Parameters
         ----------
@@ -247,12 +201,10 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
                 of shape [n_instances], 2D np.array (n_channels, n_timepoints_i), where
                 n_timepoints_i is length of series i
             other types are allowed and converted into one of the above.
-        y : 1D np.ndarray of shape [n_instances] - class labels (ground truth)
-            indices correspond to instance indices in X
 
         Returns
         -------
-        float, accuracy score of predict(X) vs y
+        float, mean squared error of the reconstruction of X
         """
         from sklearn.metrics import mean_squared_error
 
@@ -261,7 +213,7 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         return mean_squared_error(X, self.predict(X), normalize=True)
 
     @classmethod
-    def get_test_params(cls, parameter_set="default"):  # TODO @arno-dutra : OK
+    def get_test_params(cls, parameter_set="default"):
         """Return testing parameter settings for the estimator.
 
         Parameters
@@ -269,7 +221,7 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         parameter_set : str, default="default"
             Name of the set of test parameters to return, for use in tests. If no
             special parameters are defined for a value, will return `"default"` set.
-            For classifiers, a "default" set of parameters should be provided for
+            For autoencoders, a "default" set of parameters should be provided for
             general testing, and a "results_comparison" set for comparing against
             previously recorded results if the general set does not produce suitable
             probabilities to compare against.
@@ -287,7 +239,7 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         return ExtractedEncoder(model=self.encoder, autoencoder=self)
 
     @abstractmethod
-    def _fit(self, X):  # TODO @arno-dutra : OK
+    def _fit(self, X):
         """Fit time series autoencoder to training data.
 
         Abstract method, must be implemented.
@@ -313,8 +265,8 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         ...
 
     @abstractmethod
-    def _predict(self, X) -> np.ndarray:  # TODO @arno-dutra : OK
-        """Predicts labels for sequences in X.
+    def _predict(self, X) -> np.ndarray:
+        """Reconstructs the time series in X.
 
         Abstract method, must be implemented.
 
@@ -332,8 +284,8 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         """
         ...
 
-    def _predict_proba(self, X) -> np.ndarray:  # TODO @arno-dutra : OK
-        """Predicts labels probabilities for sequences in X.
+    def _predict_proba(self, X) -> np.ndarray:
+        """Reconstructs the time series in X.
 
         Default behaviour is to call _predict and set the predicted class probability
         to 1, other class probabilities to 0. Override if better estimates are
@@ -355,7 +307,7 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
 
         return preds
 
-    def _check_convert_X_for_predict(self, X):  # TODO @arno-dutra : OK
+    def _check_convert_X_for_predict(self, X):
         """Input checks, capability checks, repeated in all predict/score methods.
 
         Parameters
@@ -384,7 +336,7 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
 
         return X
 
-    def _check_capabilities(self, missing, multivariate, unequal):  # TODO @arno-dutra : OK
+    def _check_capabilities(self, missing, multivariate, unequal):
         """Check whether this classifier can handle the data characteristics.
 
         Parameters
@@ -427,7 +379,7 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
             else:
                 raise ValueError(msg)
 
-    def _convert_X(self, X):  # TODO @arno-dutra : OK
+    def _convert_X(self, X):
         """Convert to inner type.
 
         Parameters
@@ -449,7 +401,7 @@ class BaseAutoEncoder(BaseEstimator, ABC):  # TODO @arno-dutra : OK
         return X
 
     def _check_classifier_input(self, X, enforce_min_instances=1):
-        """Check whether input X and y are valid formats with minimum data.
+        """Check whether input X are valid formats with minimum data.
 
         Raises a ValueError if the input is not valid.
 

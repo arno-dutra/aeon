@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Abstract base class for the Keras neural network classifiers.
+Abstract base class for the Keras neural network autoencoders.
 
-The reason for this class between BaseClassifier and deep_learning classifiers is
+The reason for this class between BaseClassifier and deep_learning autoencoder is
 because we can generalise tags, _predict and _predict_proba
 """
 __author__ = [
@@ -19,16 +19,15 @@ __all__ = ["BaseDeepAutoEncoder"]
 from abc import ABC, abstractmethod
 
 import numpy as np
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.utils import check_random_state
 
 from aeon.autoencoder.base import BaseAutoEncoder
 
 
 class BaseDeepAutoEncoder(BaseAutoEncoder, ABC):
-    """Abstract base class for deep learning time series classifiers.
+    """Abstract base class for deep learning time series autoencoders.
 
-    The base classifier provides a deep learning default method for
+    The base autoencoder provides a deep learning default method for
     _predict and _predict_proba, and provides a new abstract method for building a
     model.
 

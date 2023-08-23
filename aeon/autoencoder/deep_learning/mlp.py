@@ -19,7 +19,7 @@ _check_dl_dependencies(severity="warning")
 
 class MLPAutoEncoder(BaseDeepAutoEncoder):
     """
-    Residual Neural Network as described in [1].
+    Residual Neural Network adapted from [1].
 
     Parameters
     ----------
@@ -70,7 +70,6 @@ class MLPAutoEncoder(BaseDeepAutoEncoder):
         bottleneck_size : int, default = 128,
             size of the bottleneck between encoder and decoder
 
-
     Notes
     -----
     Adapted from the implementation from source code
@@ -84,12 +83,12 @@ class MLPAutoEncoder(BaseDeepAutoEncoder):
 
     Examples
     --------
-    >>> from aeon.autoencoder.deep_learning.mlp import MLPClassifier
+    >>> from aeon.autoencoder.deep_learning.mlp import MLPAutoEncoder
     >>> from aeon.datasets import load_unit_test
     >>> X_train, y_train = load_unit_test(split="train")
-    >>> clf = MLPClassifier(n_epochs=20, bacth_size=4) # doctest: +SKIP
-    >>> clf.fit(X_train, Y_train) # doctest: +SKIP
-    MLPClassifier(...)
+    >>> clf = MLPAutoEncoder(n_epochs=20, bacth_size=4) # doctest: +SKIP
+    >>> clf.fit(X_train) # doctest: +SKIP
+    MLPAutoEncoder(...)
     """
 
     _tags = {
@@ -197,8 +196,6 @@ class MLPAutoEncoder(BaseDeepAutoEncoder):
         self.encoder = tf.keras.models.Model(inputs=input_layer, outputs=bottleneck_layer)
         self.decoder = tf.keras.models.Model(inputs=bottleneck_layer, outputs=output_layer)
 
-        # autoencoder = tf.keras.models.Model(inputs=input_layer, outputs=output_layer)
-        # autoencoder = self.decoder(self.encoder)
         autoencoder = tf.keras.Sequential([
             self.encoder,
             self.decoder
@@ -212,7 +209,7 @@ class MLPAutoEncoder(BaseDeepAutoEncoder):
         return autoencoder
 
     def _fit(self, X):
-        """Fit the classifier on the training set (X).
+        """Fit the autoencoder on the training set (X).
 
         Parameters
         ----------
@@ -292,7 +289,7 @@ class MLPAutoEncoder(BaseDeepAutoEncoder):
         parameter_set : str, default="default"
             Name of the set of test parameters to return, for use in tests. If no
             special parameters are defined for a value, will return `"default"` set.
-            For classifiers, a "default" set of parameters should be provided for
+            For autoencoders, a "default" set of parameters should be provided for
             general testing, and a "results_comparison" set for comparing against
             previously recorded results if the general set does not produce suitable
             probabilities to compare against.

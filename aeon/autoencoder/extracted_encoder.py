@@ -19,7 +19,6 @@ class ExtractedEncoder(BaseEstimator):
         self._is_fitted = True
         self._estimator_type = "encoder"
 
-
     def __call__(self, X, *args, use_transpose=True, **kwargs):
         if use_transpose:
             X = X.transpose(0, 2, 1)

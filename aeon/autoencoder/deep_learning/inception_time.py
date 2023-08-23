@@ -26,7 +26,7 @@ import tensorflow as tf
 class InceptionTimeAutoEncoder(BaseAutoEncoder):
     """InceptionTime ensemble autoencoder.
 
-    Ensemble of IndividualInceptionAutoEncoder objects, as described in [1].
+    Ensemble of IndividualInceptionAutoEncoder objects, adapted from [1].
 
     Parameters
     ----------
@@ -317,7 +317,7 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):
         Y : np.ndarray of shape = (n_instances (n)), the predicted labels
 
         """
-        rng = check_random_state(self.random_state)  # ???
+        check_random_state(self.random_state)
 
         probs = np.zeros(X.shape)
 
@@ -337,7 +337,7 @@ class InceptionTimeAutoEncoder(BaseAutoEncoder):
         parameter_set : str, default="default"
             Name of the set of test parameters to return, for use in tests. If no
             special parameters are defined for a value, will return `"default"` set.
-            For classifiers, a "default" set of parameters should be provided for
+            For autoencoders, a "default" set of parameters should be provided for
             general testing, and a "results_comparison" set for comparing against
             previously recorded results if the general set does not produce suitable
             probabilities to compare against.
@@ -719,7 +719,7 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):
         parameter_set : str, default="default"
             Name of the set of test parameters to return, for use in tests. If no
             special parameters are defined for a value, will return `"default"` set.
-            For classifiers, a "default" set of parameters should be provided for
+            For autoencoders, a "default" set of parameters should be provided for
             general testing, and a "results_comparison" set for comparing against
             previously recorded results if the general set does not produce suitable
             probabilities to compare against.
@@ -743,8 +743,17 @@ class IndividualInceptionAutoEncoder(BaseDeepAutoEncoder):
         return [param1]
 
 
-
 class InceptionTimeExtractedEncoder(BaseEstimator):
+    """ Extracted encoder from an InceptionTimeAutoEncoder.
+    
+    Parameters
+    ----------
+    models : list of IndividualInceptionAutoEncoder, default = None
+        The list of IndividualInceptionAutoEncoder models to extract the encoders from.
+    autoencoder : InceptionTimeAutoEncoder, default = None
+        The InceptionTimeAutoEncoder from which the encoders are extracted.
+    """
+
     def __init__(self, models=None, autoencoder=None):
         super(InceptionTimeExtractedEncoder, self).__init__()
         _check_estimator_deps(self)
@@ -755,8 +764,7 @@ class InceptionTimeExtractedEncoder(BaseEstimator):
         self._is_fitted = True
         self._estimator_type = "encoder"
 
-
-    def __call__(self, X, *args, use_transpose=True, mode="concat", **kwargs):
+    def __call__(self, X, *args, use_transpose=True, **kwargs):
         """ Encode the input data X to get the latent representation.
 
         Parameters
@@ -765,24 +773,15 @@ class InceptionTimeExtractedEncoder(BaseEstimator):
             The input samples.
         use_transpose : bool, default = True
             Whether or not to transpose the input data.
-        mode : str, default = "concat"
-            The mode to use to combine the latent representations of the individual autoencoders. Can be either "concat" or "mean".
-            "concat" will concatenate the latent representations of the individual autoencoders along the channel axis leading to a latent representation of shape (n_instances (n), latent_dim (d) * n_autoencoders (k))
-            "mean" will average the latent representations of the individual autoencoders along the channel axis leading to a latent representation of shape (n_instances (n), latent_dim (d))
-        
+           
         Returns
         -------
-        X : np.ndarray of shape = (n_instances (n), latent_dim (d) * n_autoencoders (k)) if mode="concat" or (n_instances (n), latent_dim (d)) if mode="mean"
+        X : np.ndarray of shape = (n_instances (n), latent_dim (d) * n_autoencoders (k))
         """
         if use_transpose:
             X = X.transpose(0, 2, 1)
         
-        if mode == "concat":
-            X = np.concatenate([model(X, *args, **kwargs) for model in self.models], axis=2)
-        elif mode == "mean":
-            X = np.mean(np.stack([model(X, *args, **kwargs) for model in self.models], axis=2), axis=2)
-        else:
-            raise ValueError(f"Unknown mode {mode}. Must be either 'concat' or 'mean'.")
+        X = np.concatenate([model(X, *args, **kwargs) for model in self.models], axis=2)
         
         X = X.numpy()
 
@@ -827,6 +826,5 @@ class InceptionTimeExtractedEncoder(BaseEstimator):
         except FileNotFoundError:
             self.models = []
             raise FileNotFoundError(f"Could not load the encoder from {path}. The encoder must have been saved using the save method. Make sure no other .h5 files should be present in the folder.")
-
 
         self._is_fitted = True

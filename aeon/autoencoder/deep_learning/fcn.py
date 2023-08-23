@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Residual Network (ResNet) for classification."""
+"""Vanilla CNN (FCN) for autoencoding."""
 
 __author__ = ["Arno Dutra", "James-Large", "AurumnPegasus", "nilesh05apr", "hadifawaz1999"]
-__all__ = ["ResNetAutoEncoder"]
+__all__ = ["FCNAutoEncoder"]
 
 import os
 import time
@@ -20,7 +20,7 @@ _check_dl_dependencies(severity="warning")
 
 class FCNAutoEncoder(BaseDeepAutoEncoder):
     """
-    Residual Neural Network as described in [1].
+    Convolutional Neural Network adapted from [1].
 
     Parameters
     ----------
@@ -90,28 +90,36 @@ class FCNAutoEncoder(BaseDeepAutoEncoder):
             fit parameter for the keras model
         optimizer                   : keras.optimizer, default=keras.optimizers.Adam(),
         metrics                     : list of strings, default=["accuracy"],
-        bottleneck_size : int, default = 128,
+        bottleneck_size             : int, default = 128,
             size of the bottleneck between encoder and decoder
 
     Notes
     -----
-    Adapted from the implementation from source code
-    https://github.com/hfawaz/dl-4-tsc/blob/master/classifiers/resnet.py
+    Adapted from the implementation from Fawaz et. al
+    https://github.com/hfawaz/dl-4-tsc/blob/master/classifiers/fcn.py
 
     References
     ----------
-        .. [1] Wang et. al, Time series classification from
-    scratch with deep neural networks: A strong baseline,
-    International joint conference on neural networks (IJCNN), 2017.
+    .. [1] Network originally defined in:
+    @inproceedings{wang2017time,
+      title={Time series classification from scratch with deep neural networks:
+       A strong baseline},
+      author={Wang, Zhiguang and Yan, Weizhong and Oates, Tim},
+      booktitle={2017 International joint conference on neural networks
+      (IJCNN)},
+      pages={1578--1585},
+      year={2017},
+      organization={IEEE}
+    }
 
     Examples
     --------
-    >>> from aeon.autoencoder.deep_learning.resnet import ResNetClassifier
+    >>> from aeon.autoencoder.deep_learning.fcn import FCNAutoEncoder
     >>> from aeon.datasets import load_unit_test
     >>> X_train, y_train = load_unit_test(split="train")
-    >>> clf = ResNetClassifier(n_epochs=20, bacth_size=4) # doctest: +SKIP
-    >>> clf.fit(X_train, Y_train) # doctest: +SKIP
-    ResNetClassifier(...)
+    >>> ae = FCNAutoEncoder(n_epochs=20, bacth_size=4) # doctest: +SKIP
+    >>> ae.fit(X_train) # doctest: +SKIP
+    FCNAutoEncoder(...)
     """
 
     _tags = {
@@ -242,8 +250,6 @@ class FCNAutoEncoder(BaseDeepAutoEncoder):
         self.encoder = tf.keras.models.Model(inputs=input_layer, outputs=bottleneck_layer)
         self.decoder = tf.keras.models.Model(inputs=bottleneck_layer, outputs=output_layer_decoder)
 
-        # autoencoder = tf.keras.models.Model(inputs=input_layer, outputs=output_layer_decoder)
-        # autoencoder = self.decoder(self.encoder)
         autoencoder = tf.keras.Sequential([
             self.encoder,
             self.decoder
@@ -257,7 +263,7 @@ class FCNAutoEncoder(BaseDeepAutoEncoder):
         return autoencoder
 
     def _fit(self, X):
-        """Fit the classifier on the training set (X).
+        """Fit the autoencoder on the training set (X).
 
         Parameters
         ----------
@@ -337,7 +343,7 @@ class FCNAutoEncoder(BaseDeepAutoEncoder):
         parameter_set : str, default="default"
             Name of the set of test parameters to return, for use in tests. If no
             special parameters are defined for a value, will return `"default"` set.
-            For classifiers, a "default" set of parameters should be provided for
+            For autoencoders, a "default" set of parameters should be provided for
             general testing, and a "results_comparison" set for comparing against
             previously recorded results if the general set does not produce suitable
             probabilities to compare against.

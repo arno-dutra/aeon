@@ -18,6 +18,12 @@ class MLPNetwork(BaseDeepNetwork):
     ----------
     random_state    : int, default = 0
         seed to any needed random actions
+    include_input   : bool, default = True
+        whether to include the input layer
+    units           : list of int, default = [500, 500, 500]
+        number of units in each hidden layer
+    dropout_rate    : list of float, default = [0.1, 0.2, 0.2, 0.3]
+        dropout rate for each layer
 
     Notes
     -----
